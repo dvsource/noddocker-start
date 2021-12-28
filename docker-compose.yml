@@ -1,0 +1,11 @@
+services:
+  node-app:
+    image: node-app-t1
+    container_name: node-app-container
+    environment:
+      - PORT=3000
+    volumes:
+      - '.:/usr/src/code'
+      - '/usr/src/code/node_modules'
+    ports:
+      - '3000:3000'
