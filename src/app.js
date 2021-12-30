@@ -1,9 +1,14 @@
 const express = require('express');
 const session = require('express-session');
 const MongoDBStore = require('connect-mongodb-session')(session);
+const mongoose = require('mongoose');
 const parseurl = require('parseurl');
+const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const path = require('path');
+
+const authRoutes = require('./routes/auth-routes');
+const { redirect } = require('express/lib/response');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 const envVars = process.env;
@@ -26,12 +31,9 @@ store.on('error', function (error) {
 
 const app = express();
 
-app.use(session({ secret: 'keyboard cat', resave: false, saveUninitialized: true, store }));
+app.use(bodyParser.json());
 
-app.use((req, _, next) => {
-  console.log({ session: req.session, sessionId: req.session.id });
-  next();
-});
+app.use(session({ secret: 'keyboard cat', resave: false, saveUninitialized: true, store }));
 
 app.use((req, _, next) => {
   if (!req.session.views) {
@@ -51,24 +53,25 @@ app.use((req, _, next) => {
 
 app.get('/', (_, res) => res.send('Hello World'));
 
-app.get('/foo', function (req, res) {
-  req.session.lastFooReq = new Date();
-  res.json({
-    req: parseurl(req),
-    session: req.session,
-    sessionId: req.session.id,
-    message: `you viewed this page ${req.session.views[`${req.method}:/foo`]} times`,
-  });
+app.use('/auth', authRoutes);
+
+app.use((req, res, next) => {
+  console.log(req.session);
+  if (req.session.isAuth) {
+    next();
+  } else {
+    res.redirect('/');
+  }
 });
 
-app.get('/bar', function (req, res) {
-  req.session.lastBarReq = new Date();
-  res.json({
-    req: parseurl(req),
-    session: req.session,
-    sessionId: req.session.id,
-    message: `you viewed this page ${req.session.views[`${req.method}:/bar`]} times`,
-  });
-});
+app.get('/api', (_, res) => res.send('API Working!!!'));
 
-app.listen(envVars.PORT, () => console.log(`App Listning on port: ${envVars.PORT}`));
+mongoose
+  .connect(envVars.MONGO_DB_URL, {
+    auth: {
+      username: envVars.MONGO_DB_USER,
+      password: envVars.MONGO_DB_PASS,
+    },
+    dbName: envVars.MONGO_DB_DATABASE,
+  })
+  .then(() => app.listen(envVars.PORT, () => console.log(`App Listning on port: ${envVars.PORT}`)));
